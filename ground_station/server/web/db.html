@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Database — Honeypot CubeSat CTI</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">🛰️ Database</div>
+  <div class="sub"><a href="/" class="link">← Portal</a> · bench_cti.db · <span id="count">–</span> records</div>
+  <button id="reset" class="btn danger">Reset database</button>
+</header>
+
+<main>
+  <div class="tab" style="border-radius:10px; margin-top:16px; overflow-x:auto;">
+    <table class="feed" id="db-table">
+      <thead><tr>
+        <th>ID</th><th>Time</th><th>Source</th><th>Command</th>
+        <th>Δf (kHz)</th><th>Doppler (Hz)</th><th>RSSI (dBm)</th><th>CRC</th><th>Gap (s)</th>
+        <th>Score</th><th>Fuzzy</th><th>Class</th><th>Flagged</th><th>Confidence</th><th>Fingerprint</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="db-body"></tbody>
+    </table>
+    <p class="empty" id="empty" hidden>No records.</p>
+  </div>
+</main>
+
+<footer>Edits are written straight to bench_cti.db; the portal picks them up on its next refresh.</footer>
+<script src="db.js"></script>
+</body>
+</html>

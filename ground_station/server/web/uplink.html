@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Honeypot CubeSat — Uplink Monitor</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .link-state { font-size: 12px; padding: 2px 9px; border-radius: 20px; border: 1px solid var(--line); }
+  .link-state.connected { color: var(--ok); border-color: var(--ok); }
+  .link-state.offline { color: var(--bad); border-color: var(--bad); }
+  .link-state.demo, .link-state.waiting { color: var(--warn); border-color: var(--warn); }
+  tr.att td { background: rgba(248, 81, 73, .07); }
+  tr.new td { animation: flash 1.2s ease-out; }
+  @keyframes flash { from { background: rgba(88, 166, 255, .22); } }
+  .srcs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+
+  .legend { margin-top: 18px; }
+  .legend h3 { margin: 0 0 8px; font-size: 13px; color: var(--dim);
+    text-transform: uppercase; letter-spacing: .04em; }
+  .legend table { width: 100%; border-collapse: collapse; }
+  .legend td { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line);
+    vertical-align: top; }
+  .legend td.who { white-space: nowrap; width: 190px; }
+  .legend .pin { color: var(--dim); font-size: 12px;
+    font-family: ui-monospace, monospace; }
+  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%;
+    margin-right: 8px; vertical-align: -1px; }
+  .dot.red { background: var(--bad); }
+  .dot.amber { background: var(--warn); }
+  .dot.green { background: var(--ok); }
+  .dot.blue { background: var(--acc); }
+  .legend .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 760px) { .legend .modes { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">📡 Uplink Monitor — what the transmitter is sending</div>
+  <div class="sub">
+    gs_uplink_pico → HNY1 · bench prototype ·
+    <a href="http://127.0.0.1:8700/" class="link">CTI portal</a> ·
+    <span id="link" class="link-state waiting">waiting</span>
+    <span id="link-detail" class="mono"></span>
+  </div>
+</header>
+
+<section class="kpis">
+  <div class="kpi"><div class="n" id="k-frames">–</div><div class="l">Frames sent</div></div>
+  <div class="kpi"><div class="n" id="k-attacks">–</div><div class="l">Attack frames</div></div>
+  <div class="kpi"><div class="n" id="k-sources">–</div><div class="l">Callsigns on air</div></div>
+  <div class="kpi"><div class="n" id="k-fcs">–</div><div class="l">Malformed (FCS)</div></div>
+</section>
+
+<main>
+  <div class="tab">
+    <div id="srcs" class="srcs"></div>
+    <table class="feed">
+      <thead><tr>
+        <th>Time</th><th>Pass t</th><th>Source</th><th>Command</th>
+        <th>Offset (kHz)</th><th>Doppler (Hz)</th><th>Kind</th><th>TX</th>
+      </tr></thead>
+      <tbody id="feed-body"></tbody>
+    </table>
+    <p class="note">
+      Newest first, last 400 frames. Offset is the carrier bias the sketch
+      transmits on; Doppler is the pre-compensation a legitimate station
+      applies and an attacker does not. This is the transmitted truth —
+      what the honeypot made of each frame is in the CTI portal.
+    </p>
+
+    <div class="legend">
+      <h3>What the lights on the ESP-32 mean</h3>
+      <div class="modes">
+        <div>
+          <p class="note" style="margin:0 0 6px">
+            <b>Honeypot mode</b> (default) — the verdict on the last packet
+            received. One of the three stays lit until the next packet.
+          </p>
+          <table>
+            <tr>
+              <td class="who"><span class="dot red"></span>Red<div class="pin">IO32</div></td>
+              <td>Flagged (score ≥ 50), or a class of neither <span class="mono">known</span>
+                  nor <span class="mono">suspicious</span> — the attacker frames.</td>
+            </tr>
+            <tr>
+              <td class="who"><span class="dot amber"></span>Amber<div class="pin">IO17</div></td>
+              <td>Class <span class="mono">suspicious</span> and below the flag
+                  threshold: something is off, not enough to flag it.</td>
+            </tr>
+            <tr>
+              <td class="who"><span class="dot green"></span>Green<div class="pin">IO16</div></td>
+              <td>Class <span class="mono">known</span> and not flagged — a
+                  registered ground station behaving normally.</td>
+            </tr>
+            <tr>
+              <td class="who"><span class="dot blue"></span>Blue<div class="pin">IO4</div></td>
+              <td>Lit for the whole PHASE 3 downlink, while stored records are
+                  transmitted to the CTI ground station.</td>
+            </tr>
+          </table>
+        </div>
+        <div>
+          <p class="note" style="margin:0 0 6px">
+            <b>Member mode</b> (<span class="mono">M</span> in the serial
+            monitor) — the same three LEDs carry the accept/block verdict a
+            member satellite returns to its OBC, and nothing is stored.
+          </p>
+          <table>
+            <tr>
+              <td class="who"><span class="dot red"></span>Red</td>
+              <td>BLOCK — the callsign is on the blocklist.</td>
+            </tr>
+            <tr>
+              <td class="who"><span class="dot green"></span>Green</td>
+              <td>ACCEPT. An undecodable frame also lands here: a board that
+                  cannot decide fails open, so it never becomes the reason a
+                  satellite stops taking commands.</td>
+            </tr>
+            <tr>
+              <td class="who"><span class="dot amber"></span>Amber</td>
+              <td>Blocklist hit that the allowlist overrode — accepted, but
+                  worth knowing it matched.</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <p class="note">
+        Red, amber and green are mutually exclusive: one of them blinks for a
+        second on every packet received, and a new packet cuts the previous
+        blink short. Blue is independent and marks a downlink in progress.
+      </p>
+    </div>
+  </div>
+</main>
+
+<footer>Updated: <span id="updated">–</span> · Uplink transmitter view; nothing here is stored on disk.</footer>
+<script src="uplink.js"></script>
+</body>
+</html>

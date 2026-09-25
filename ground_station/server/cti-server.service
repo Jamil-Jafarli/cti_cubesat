@@ -1,0 +1,29 @@
+# CTI ground station on the Raspberry Pi: hny_server.py with the Ra-01
+# receiver (gs_cti_pi) it starts itself. Portal on port 8700, LAN-wide.
+#
+# Paths assume this repository is cloned to /home/pi/cti-cubesat-bench;
+# adjust User, Group and WorkingDirectory to your Pi.
+#
+#   sudo cp cti-server.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cti-server
+#   journalctl -u cti-server -f            # live log
+[Unit]
+Description=CTI ground station (Ra-01 receiver + CTI server/portal)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+SupplementaryGroups=spi gpio
+WorkingDirectory=/home/pi/cti-cubesat-bench/ground_station/server
+ExecStart=/usr/bin/python3 -u hny_server.py --radio --host 0.0.0.0
+Restart=on-failure
+RestartSec=5
+# stops the receiver child too, so SPI and the GPIO lines are released
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target

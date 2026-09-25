@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Honeypot CubeSat — CTI Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">🛰️ Honeypot CubeSat — Space Threat Intelligence</div>
+  <div class="sub">
+    Uplink honeypot → CTI ground station · bench prototype ·
+    <a href="/db.html" class="link">database</a> ·
+    <a href="http://127.0.0.1:8701/" class="link">uplink monitor</a> ·
+    <span id="ingest" class="pill-live">–</span>
+  </div>
+  <input id="search" placeholder="Search callsign, command, signature or rule…" autocomplete="off">
+</header>
+
+<section class="kpis" id="kpis"></section>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="alerts">Alerts</button>
+  <button data-tab="telemetry">Telemetry</button>
+  <button data-tab="attribution">Attribution</button>
+  <button data-tab="indicators">Indicators</button>
+  <button data-tab="policy">Onboard policy</button>
+</nav>
+
+<main>
+  <!-- ── Overview ─────────────────────────────────────────────────── -->
+  <div id="tab-overview" class="tab">
+    <div class="charts">
+      <figure class="viz-root">
+        <figcaption>
+          <b>Uplink traffic</b>
+          <span class="sub-cap">frames captured per interval, flagged share on top</span>
+        </figcaption>
+        <div id="chart-timeline"></div>
+        <div class="legend-row" id="legend-timeline"></div>
+      </figure>
+      <figure class="viz-root">
+        <figcaption>
+          <b>Open alerts by severity</b>
+          <span class="sub-cap">detection rules, excluding closed</span>
+        </figcaption>
+        <div id="chart-severity"></div>
+      </figure>
+    </div>
+    <div class="split2">
+      <section>
+        <h3>Sources by risk</h3>
+        <div id="ov-sources"></div>
+      </section>
+      <section>
+        <h3>Latest detections</h3>
+        <div id="ov-alerts"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ── Alerts (triage) ──────────────────────────────────────────── -->
+  <div id="tab-alerts" class="tab" hidden>
+    <div class="filters">
+      <label>Status
+        <select id="f-alert-status">
+          <option value="open">open</option>
+          <option value="ack">acknowledged</option>
+          <option value="closed">closed</option>
+          <option value="all">all</option>
+        </select>
+      </label>
+      <label>Severity
+        <select id="f-alert-sev">
+          <option value="">any</option>
+          <option value="critical">critical</option>
+          <option value="high">high</option>
+          <option value="medium">medium</option>
+          <option value="low">low</option>
+        </select>
+      </label>
+      <span class="spacer"></span>
+      <span class="note" id="alert-count"></span>
+    </div>
+    <div class="split">
+      <div id="alert-list" class="list"></div>
+      <div id="alert-detail" class="detail"><p class="empty">Select an alert.</p></div>
+    </div>
+  </div>
+
+  <!-- ── Telemetry ────────────────────────────────────────────────── -->
+  <div id="tab-telemetry" class="tab" hidden>
+    <div class="filters">
+      <label>Source <select id="f-src"><option value="">any</option></select></label>
+      <label>Class <select id="f-cls">
+        <option value="">any</option><option>known</option>
+        <option>suspicious</option><option>attacker</option></select></label>
+      <label class="check"><input type="checkbox" id="f-flagged"> flagged only</label>
+      <span class="spacer"></span>
+      <span class="note" id="tel-count"></span>
+    </div>
+    <table class="feed">
+      <thead><tr>
+        <th>Time</th><th>Source</th><th>Command</th><th>Δf (kHz)</th>
+        <th>Residual (Hz)</th><th>RSSI</th><th>FCS</th><th>Signature</th>
+        <th>WL</th><th>Score</th><th>Class</th>
+      </tr></thead>
+      <tbody id="tel-body"></tbody>
+    </table>
+    <div id="tel-detail" class="detail"><p class="empty">Select a frame to see how it was scored.</p></div>
+  </div>
+
+  <!-- ── Attribution ──────────────────────────────────────────────── -->
+  <div id="tab-attribution" class="tab" hidden>
+    <figure class="viz-root wide">
+      <figcaption>
+        <b>Carrier offset by source</b>
+        <span class="sub-cap">mean with observed range; a station that tracks the
+          pass moves, a fixed transmitter does not</span>
+      </figcaption>
+      <div id="chart-attribution"></div>
+      <div class="legend-row" id="legend-attribution"></div>
+    </figure>
+    <div id="attr-table"></div>
+    <div class="fuzzy-explainer" id="fuzzy-explainer"></div>
+  </div>
+
+  <!-- ── Indicators ───────────────────────────────────────────────── -->
+  <div id="tab-indicators" class="tab" hidden>
+    <div class="filters">
+      <label>Min confidence <input type="range" id="f-conf" min="0" max="95" value="50">
+        <span id="f-conf-v" class="mono">50</span></label>
+      <label>Type <select id="f-ind-type">
+        <option value="">any</option><option value="callsign">callsign</option>
+        <option value="rf-signature">rf-signature</option>
+        <option value="command">command</option></select></label>
+      <span class="spacer"></span>
+      <a class="btn" id="dl-stix" href="#" download="honeypot-cti.stix.json">Export STIX 2.1</a>
+      <a class="btn" id="dl-misp" href="#" download="honeypot-cti.misp.json">Export MISP</a>
+      <a class="btn" id="dl-csv" href="#" download="honeypot-cti.csv">Export CSV</a>
+    </div>
+    <div id="ind-table"></div>
+    <p class="note">
+      Confidence combines how much evidence exists, how much of it was flagged and
+      how tightly the carrier offsets cluster; it is capped below 100 because a
+      two-radio bench cannot earn certainty. TLP marks how far an entry may be
+      shared. Setting an indicator to <i>blocklist</i> proposes it for uplink — the
+      satellite only enforces what has actually been sent to it (Onboard policy).
+    </p>
+  </div>
+
+  <!-- ── Onboard policy ───────────────────────────────────────────── -->
+  <div id="tab-policy" class="tab" hidden>
+    <div id="policy-body"></div>
+  </div>
+</main>
+
+<footer>
+  Updated: <span id="updated">–</span> ·
+  Records are captured on board and scored again on the ground; the ground
+  figures are authoritative (paper §6.2).
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

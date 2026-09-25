@@ -1,0 +1,9 @@
+# Ground detection pipeline (Python 3.13)
+pandas>=2.2
+numpy>=1.26
+matplotlib>=3.8
+streamlit>=1.40
+
+# Only needed for the bench CTI server in live mode:
+#   hny_plugin_board/proto/server/hny_server.py --serial /dev/ttyACM0
+pyserial>=3.5

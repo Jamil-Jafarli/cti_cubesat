@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Runtime data
+*.db
+*.db-journal
+platform/data/
+platform/out/
+
+# Build output
+ground_station/gs_cti_pi/build/
+build/
+*.bin
+*.elf
+*.uf2
+*.map
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
