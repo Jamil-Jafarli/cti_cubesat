@@ -13,6 +13,7 @@ honeypot node, and a Raspberry Pi 4 ground station with a web portal.
 
 | Uplink transmitter | Honeypot node | CTI ground station |
 |---|---|---|
+| ![Uplink transmitter](docs/images/uplink_transmitter_photo.jpg) | ![Honeypot node](docs/images/honeypot_node_photo.jpg) | ![Ground station](docs/images/ground_station_photo.jpg) |
 | ![Uplink transmitter schematic](docs/images/uplink_transmitter_schematic.png) | ![Honeypot node schematic](docs/images/honeypot_node_schematic.png) | ![Ground station schematic](docs/images/ground_station_schematic.png) |
 | Raspberry Pi Pico + DRF1278F | ESP32 + Ra-01 + INA219 | Raspberry Pi 4 + Ra-01 |
 
