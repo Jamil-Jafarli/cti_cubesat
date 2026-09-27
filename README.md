@@ -176,9 +176,9 @@ are in [docs/hardware.md](docs/hardware.md).
 
 ![Ground station schematic](docs/images/ground_station_schematic.png)
 
-The ground-station schematic draws the radio with the DRF1278F symbol; the
-bench uses a Ra-01 with the same connections. The Fritzing sources of all
-three schematics are in [`hardware/`](hardware).
+The ground-station schematic takes 3V3 and GND from header pins 1 and 39;
+any 3V3 and GND pin works. The Fritzing sources of all three schematics are
+in [`hardware/`](hardware).
 
 ### Firmware
 

@@ -21,7 +21,7 @@ framing code (`libraries/HnyProto`).
 | 1 | INA219 current-monitor breakout, 0.1 Ω shunt | radio supply monitor on the honeypot node |
 | 1 | Raspberry Pi 4 Model B, Raspberry Pi OS | ground station |
 | 4 | 3 mm or 5 mm LEDs: red, amber, green, blue | verdict indicators |
-| 4 | resistors: 300 Ω (red, green), 200 Ω (amber, blue) | LED series resistors |
+| 4 | resistors: 220 Ω (red, green, blue), 100 Ω (amber) | LED series resistors |
 | 3 | 100 nF ceramic capacitor | one per radio module |
 | 3 | 10–47 µF electrolytic capacitor, ≥ 6.3 V | one per radio module |
 | 3 | 17.3 cm straight wire (or a 433 MHz spring antenna) | quarter-wave antenna for each radio |
@@ -72,10 +72,10 @@ in the sketch if you use another one. DIO1–DIO5 stay unconnected.
 | INA219 SDA | IO21 |
 | INA219 SCL | IO22 |
 | Ra-01 GND (all three) | GND |
-| red LED anode, through 300 Ω | IO32 |
-| amber LED anode, through 200 Ω | IO17 |
-| green LED anode, through 300 Ω | IO16 |
-| blue LED anode, through 200 Ω | IO4 |
+| red LED anode, through 220 Ω | IO32 |
+| amber LED anode, through 100 Ω | IO17 |
+| green LED anode, through 220 Ω | IO16 |
+| blue LED anode, through 220 Ω | IO4 |
 | LED cathodes | GND |
 
 The radio's supply runs ESP32 3V3 → INA219 VIN+ → shunt → VIN− → Ra-01 3.3V,
@@ -121,8 +121,8 @@ solder pad); odd pins are on the inner row. Pins 2 and 4 carry 5 V; do not
 connect the radio there. The kernel's SPI driver drives NSS (CE0), so SPI must
 be enabled (`sudo raspi-config nonint do_spi 0`).
 
-The ground-station schematic below draws the radio with the DRF1278F symbol;
-the bench uses a Ra-01, which has the same signal names and connections.
+The schematic below takes 3V3 and GND from header pins 1 and 39; any 3V3 and
+GND pin works.
 
 ![Ground station schematic](images/ground_station_schematic.png)
 
