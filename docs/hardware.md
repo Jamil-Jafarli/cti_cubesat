@@ -153,9 +153,3 @@ Fritzing part for the Dorji DRF1278F, which is not in the standard library.
 Import `parts/DRF1278F_Dorji_SX1278.fzpz` first (File → Open), then open the
 sketches. The Ra-01, ESP32 DevKit, INA219 and Raspberry Pi Pico parts are
 embedded in the sketches; they come from community part libraries.
-
-## Photos
-
-| Uplink transmitter | Honeypot node | Ground station |
-|---|---|---|
-| ![Uplink transmitter](images/uplink_transmitter_photo.jpg) | ![Honeypot node](images/honeypot_node_photo.jpg) | ![Ground station](images/ground_station_photo.jpg) |
