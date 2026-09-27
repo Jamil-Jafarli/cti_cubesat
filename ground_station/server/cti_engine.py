@@ -5,7 +5,7 @@ hny_server.py owns ingestion, the packet table and the HTTP layer. Everything
 that turns those packets into something an analyst acts on lives here:
 
   fuzzy_breakdown()   why the onboard classifier called a packet known /
-                      suspicious / attacker — the §4.2 registry match with its
+                      suspicious / attacker — the fuzzy registry match with its
                       three weighted terms, the runner-up and the margin, so
                       the number in the record can be argued with instead of
                       trusted.
@@ -98,7 +98,7 @@ SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 # ── fuzzy attribution ────────────────────────────────────────────────────
 
 def fuzzy_breakdown(freq_dev_khz: float, drift_ppm: float = 0.0) -> dict:
-    """Recompute the onboard §4.2 match and show every term.
+    """Recompute the onboard fuzzy registry match and show every term.
 
     The bench cannot measure oscillator drift, so the firmware passes 0 and the
     drift term becomes a constant per registry entry. That is worth seeing: it
@@ -138,7 +138,7 @@ def signature(src: str, freq_dev_khz: float, bucket_khz: float = 0.5) -> str:
     """The transmitter signature the firmware whitelists on: claimed callsign
     plus the carrier offset quantised into half-kHz buckets. Unlike the record
     hash it survives from one packet to the next, which is what makes it
-    usable as an identity at all (paper §4.3)."""
+    usable as an identity at all."""
     q = round(freq_dev_khz / bucket_khz) * bucket_khz
     return f"{(src or '?').upper()}@{q:+.1f}"
 
@@ -177,7 +177,7 @@ def rule_callsign_spoof(row, ctx):
     """A registered callsign whose carrier does not move with the pass. A real
     station pre-compensates Doppler; a fixed ground transmitter cannot, so the
     residual gives the impersonation away even when every other field is
-    correct (paper §4.3, the case the RF fingerprinting is aimed at)."""
+    correct, which is the case the RF fingerprinting is aimed at."""
     src = (_d(row, "src", "") or "").upper()
     if not KNOWN_CALLSIGN.match(src):
         return None
@@ -476,7 +476,7 @@ def export_stix(con, min_confidence: int = 50) -> dict:
         "created": now, "modified": now,
         "name": "Honeypot CubeSat bench", "identity_class": "system",
         "description": "Onboard RF honeypot; records downlinked to a CTI "
-                       "ground station (paper §3.1, §6.2).",
+                       "ground station for analysis.",
     }]
     for ind in indicators(con):
         if ind["confidence"] < min_confidence or ind["status"] == "dismissed":

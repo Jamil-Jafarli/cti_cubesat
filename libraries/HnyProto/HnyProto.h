@@ -1,20 +1,27 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   HnyProto — shared protocol + detection for the honeypot CubeSat bench
+   HnyProto — shared protocol and detection code for the honeypot CubeSat bench
 
-   One Arduino library used by all three sketches (gs_uplink_pico,
-   hny_node_esp32, gs_cti_pi) so the RF wire format and the detection math
-   are defined once. INSTALL: copy this folder to  ~/Arduino/libraries/HnyProto
+   A header-only Arduino library used by every node (firmware/honeypot_node,
+   firmware/uplink_transmitter, firmware/link_test and the Raspberry Pi
+   receiver in ground_station/receiver), so the RF wire format and the
+   detection math are defined once.
 
-   Contents:
-     · AX.25 UI-frame encode/decode (real amateur-satellite framing) over an
-       SX1278 GFSK PHY, with the AX.25 CRC-16/X.25 FCS.
-     · the bench ground-station table + the 16-entry fuzzy registry (paper §4).
-     · the 7-indicator anomaly score + fuzzy match (identical math to
-       platform/detector.py) — SHA fingerprint is added by the ESP32 sketch.
-     · a fixed-size CTI Record and its CSV form for storage + downlink.
+   Install: pass this folder to arduino-cli with --library, or copy it to
+   ~/Arduino/libraries/HnyProto.
 
-   Kept in sync BY HAND with platform/profiles.py + detector.py and
-   hny_plugin/hny_profile.h.
+   Contents
+     · AX.25 UI frame encode/decode with the AX.25 CRC-16/X.25 FCS, carried
+       over the SX1278's 2-FSK packet engine;
+     · the bench ground-station table and the 16-entry fuzzy registry;
+     · transmitter signatures, the fingerprint whitelist and the member-mode
+       verdict;
+     · the seven-indicator anomaly score and the fuzzy transmitter match
+       (the same math as simulation/detector.py; the SHA-256 record
+       fingerprint is added by the honeypot sketch);
+     · the fixed-size CTI Record, its CSV form and the packed downlink record.
+
+   The constants are kept in sync by hand with simulation/profiles.py and
+   simulation/detector.py.
    ═══════════════════════════════════════════════════════════════════════ */
 #pragma once
 #include <Arduino.h>
@@ -69,8 +76,8 @@ static inline size_t ax25_build(uint8_t *out, size_t cap,
 
    Pass an fcs_ok pointer and the frame is decoded even with a bad FCS, with
    validity reported instead of thrown away. That is what the honeypot wants:
-   it "logs every received packet's RF metadata regardless of validity"
-   (paper 3.1), and the malformed-packet indicator needs the record to exist.
+   it logs every received packet regardless of validity, and the
+   malformed-packet indicator needs the record to exist.
    The address and info fields are still read — a damaged FCS says nothing
    about the bytes before it — so the record keeps its source and command.  */
 static inline bool ax25_parse(const uint8_t *f, size_t n,
@@ -103,8 +110,9 @@ static inline bool ax25_parse(const uint8_t *f, size_t n,
 
 /* ══════════════════════ bench ground stations ════════════════════════ */
 /* Callsigns carry no dash (AX.25 uses the dash for the SSID). freq_off_khz
-   is BENCH-SCALED (±8 kHz) so the five stations are separable above the
-   two-crystal offset — flight uses the sub-kHz residuals in profiles.py.    */
+   is scaled for the bench (±8 kHz) so the five stations are separable well
+   above the measurement error; the registry below uses the sub-kHz residuals
+   of simulation/profiles.py.                                                */
 struct BenchGs { const char *call; float freq_off_khz; float drift_ppm; };
 static const BenchGs BENCH_GS[] = {
   {"GS100", -8.0f, 0.04f},
@@ -115,7 +123,7 @@ static const BenchGs BENCH_GS[] = {
 };
 static const size_t N_BENCH_GS = sizeof(BENCH_GS) / sizeof(BENCH_GS[0]);
 
-/* full 16-entry fuzzy registry (paper §4.2, sub-kHz residuals) */
+/* full 16-entry fuzzy registry (sub-kHz carrier residuals, drift in ppm) */
 struct GsProfile { const char *id; float bias_khz; float drift_ppm; };
 static const GsProfile REGISTRY[] = {
   {"GS100",  0.64f, 0.04f}, {"GS101", -0.82f, 0.11f},
@@ -131,8 +139,7 @@ static const size_t N_GS = sizeof(REGISTRY) / sizeof(REGISTRY[0]);
 
 /* ═════════════ transmitter signature + fingerprint whitelist ══════════
    The `fp` field is a SHA-256 over the packet's own fields, so it is a record
-   identifier and changes with every frame (paper §4.3) — nothing can be
-   whitelisted on it. What does survive from packet to packet is the physical
+   identifier and changes with every frame; nothing can be whitelisted on it. What does survive from packet to packet is the physical
    layer the transmitter cannot easily change: the carrier offset its
    oscillator lands on. Quantised into half-kHz buckets and paired with the
    claimed callsign, that is a usable identity:
@@ -201,24 +208,25 @@ static inline bool bench_bias_khz(const char *call, float *bias) {
   return false;
 }
 
-/* ══════════════════════ member mode (paper 3.3, 6.1) ═════════════════
-   On a member satellite the board is a gate, not a sensor: the OBC asks for a
-   verdict before executing an uplink command. Two lists decide it.
+/* ══════════════════════ member mode ══════════════════════════════════
+   On a member satellite the board is a gate, not a sensor: the on-board
+   computer asks for a verdict before executing an uplink command. Two lists
+   decide it.
 
-   The ALLOWLIST is the satellite's own ground stations and ALWAYS WINS. It is
-   the paper's first countermeasure against "blaming someone else" (7): an
-   attacker who imitates a legitimate station could otherwise get that station
-   blocklisted and lock the operator out of their own satellite.
+   The ALLOWLIST is the satellite's own ground stations and always wins. It is
+   the defence against "blaming someone else": an attacker who imitates a
+   legitimate station could otherwise get that station blocklisted and lock
+   the operator out of their own satellite.
 
    The BLOCKLIST comes from the ground platform and stores transmitter
-   SIGNATURES, not record hashes — a SHA-256 changes completely if the
-   frequency moves by 10 Hz and Doppler differs for every pass (4.3), so the
-   comparison is fuzzy: callsign plus carrier offset within a tolerance.
+   signatures, not record hashes: a SHA-256 changes completely when the
+   frequency moves by 10 Hz, and Doppler differs for every pass, so the
+   comparison is fuzzy (callsign plus carrier offset within a tolerance).
 
    Matching on the raw offset works on the bench because attackers do not
-   pre-compensate Doppler, so their carrier sits still while a legitimate
+   pre-compensate Doppler, so their carrier stays put while a legitimate
    station's moves with the pass. Only entries at or above BLOCK_CONF_MIN are
-   acted on ("only high-confidence blocklist entries are blocked", 6.1).    */
+   acted on.                                                                */
 struct AllowEntry { const char *call; };
 static const AllowEntry ALLOWLIST[] = {
   {"GS104"},                  // this satellite's own operator
@@ -242,8 +250,8 @@ enum Verdict : uint8_t { V_ACCEPT = 0, V_BLOCK = 1, V_ALLOW_OVERRIDE = 2,
                          V_SPOOF_SUSPECT = 3 };
 
 /* Verdict for one uplink packet, with the fingerprint whitelist consulted for
-   the allowlist override. Fail-open by design (6.1): anything this function
-   cannot positively match is accepted, so a false positive can never make the
+   the allowlist override. Fail-open by design: anything this function cannot
+   positively match is accepted, so a false positive can never make the
    satellite uncommandable.                                                 */
 static inline Verdict hny_verdict_fp(const char *src, float freq_dev_khz,
                                      float resid_khz,
@@ -343,14 +351,15 @@ static inline void hny_score(Record &r) {
   if (!r.crc_ok)                                s += SEV_MAL;
   if (strncmp(r.src, "GS", 2))                  s += SEV_UNK;
   if (r.gap_s < PROBING_S_TH)                   s += SEV_PRB;
-  // modulation indicator: bench is GFSK-only, so it never fires here (§7)
+  // modulation indicator: an SX127x packet receiver decodes only its own
+  // modulation, so this indicator never fires on the bench
 
   float best = 0.0f, drift = 0.0f;      // drift not measurable on the bench
   for (size_t j = 0; j < N_GS; j++) {
     float sf = 1.0f - fabsf(r.freq_dev_khz - REGISTRY[j].bias_khz) / 25.0f;
     float sd = 1.0f - fabsf(drift - REGISTRY[j].drift_ppm) / 1.0f;
     if (sf < 0) sf = 0; if (sd < 0) sd = 0;
-    float sc = W_FREQ * sf + W_DRIFT * sd + W_MOD * 1.0f;   // GFSK match
+    float sc = W_FREQ * sf + W_DRIFT * sd + W_MOD * 1.0f;   // modulation matches
     if (sc > best) best = sc;
   }
   r.score   = s;
@@ -363,8 +372,8 @@ static inline void hny_score(Record &r) {
            : (best >= FUZZY_SUSP_MIN ? "suspicious" : "attacker"));
 }
 
-/* CSV form carried in the downlink AX.25 info field and printed to the
-   server by the GS. Order is fixed; keep in sync with hny_server.py.        */
+/* CSV form of a record, the line format the ground station prints and
+   hny_server.py parses. The field order is fixed.                           */
 static inline size_t record_to_csv(const Record &r, char *o, size_t cap) {
   return snprintf(o, cap,
                   "%lu,%s,%s,%.2f,%.0f,%.1f,%u,%.2f,%u,%.3f,%s,%u,%.2f,%s,%s,%u",
@@ -389,7 +398,7 @@ static inline size_t record_to_csv(const Record &r, char *o, size_t cap) {
        transmitter signature follows from the callsign and the residual, so
        all three are derived at the ground station rather than carried.
      - The per-record SHA-256 is not sent either. It is a record identifier,
-       not a transmitter identity (§4.3), and spending 20 of 46 available
+       not a transmitter identity, and spending 20 of 46 available
        payload bytes on an identifier the ground can assign itself is not a
        trade worth making on a 9.6 kb/s link.
 

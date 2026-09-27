@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CTI server — PHASE 4/5 of the honeypot CubeSat bench.
+"""CTI server — ground segment of the honeypot CubeSat bench.
 
 Takes the CTI records the ground station receives — one `CTI,<csv>` line per
 record the honeypot downlinked — stores them in SQLite on disk, and serves the
@@ -7,8 +7,9 @@ threat-intel portal (web/) so the ground-station data can be inspected at any
 time, including after the RF session has ended.
 
 The ground station is the Raspberry Pi this server runs on, with a Ra-01 on
-its SPI bus (gs_cti_pi, started and read by --radio). --serial reads the same
-CTI,<csv> lines from any receiver that prints them on a USB serial port.
+its SPI bus (ground_station/receiver, started and read by --radio). --serial
+reads the same CTI,<csv> lines from any receiver that prints them on a USB
+serial port.
 
     python3 hny_server.py --radio --host 0.0.0.0         # Pi + Ra-01
     python3 hny_server.py --serial /dev/ttyACM0          # receiver on USB serial
@@ -19,9 +20,9 @@ CSV field order (HnyProto.h record_to_csv — keep in sync):
     t_ms,src,cmd,freq_dev_khz,dop_hz,rssi,crc_ok,gap_s,score,fuzzy,cls,
     flagged,conf,fp
 
-Source profiles and risk score (paper §4.4, bench form). Records are grouped by
-the CLAIMED CALLSIGN, not by the `fp` hash: that hash is the record identifier
-and changes with every packet (paper §4.3), so it cannot group traffic. True
+Source profiles and risk score. Records are grouped by the CLAIMED CALLSIGN,
+not by the `fp` hash: that hash is the record identifier and changes with
+every packet, so it cannot group traffic. True
 transmitter grouping needs the signature pair (residual carrier offset +
 short-term oscillator drift); the bench Record carries no drift figure, so it
 is out of reach here and is left to the flight build.
@@ -33,15 +34,15 @@ is out of reach here and is left to the flight build.
              + 10 * min(1, mean|freq_dev|/20)   RF anomaly vs channel centre
     risk     = min(100, severity * min(1, count/CONFIRM_OBS))
 
-The confirmation factor implements paper §4.4: an entry reaches the blocklist
-only once several observations confirm it, so one packet — however suspicious —
-cannot by itself produce a high-risk profile. A profile is a blocklist
+The confirmation factor means an entry reaches the blocklist only once
+several observations confirm it, so one packet, however suspicious, cannot by
+itself produce a high-risk profile. A profile is a blocklist
 candidate when it is confirmed (>= CONFIRM_OBS observations) and its risk
 reaches BLOCKLIST_RISK_MIN.
 
 Only the Python standard library is required; pyserial is needed solely for
-the live --serial mode. --simulate reuses cti_platform's generator + detector
-(install platform/requirements.txt first).
+the live --serial mode. --simulate reuses the generator and detector in
+simulation/ (install simulation/requirements.txt first).
 """
 from __future__ import annotations
 
@@ -87,19 +88,19 @@ MIGRATIONS = [("onboard_score", "INTEGER"), ("pass_t_s", "REAL"),
 
 CSV_FIELDS = ["device_ms", "src", "cmd", "freq_dev_khz", "dop_hz", "rssi",
               "crc_ok", "gap_s", "score", "fuzzy", "cls", "flagged", "conf", "fp"]
-# Firmware from 2026-09 appends the transmitter signature and the onboard
+# Current firmware appends the transmitter signature and the onboard
 # whitelist verdict (0 no entry / 1 match / 2 mismatch). Older boards send the
 # 14-field line, so both lengths are accepted and the extras default to None.
 CSV_FIELDS_EXT = CSV_FIELDS + ["sig", "wl"]
 
 
 # ── ground-side Doppler analysis ─────────────────────────────────────────
-# The honeypot ships the raw FEI measurement and always sends dop_hz = 0: a
-# single fixed receiver cannot separate Doppler from the transmitter's own
-# carrier offset, and the onboard score only sets the downlink order anyway
-# (paper 4.1, 6.2). Deriving the residual is ground work, and this is it.
+# The honeypot measures the carrier offset and estimates the Doppler residual
+# from the cooperating stations' own traffic (a running median). The ground has
+# the whole pass, so it fits the pass profile to all records and recomputes the
+# residual; the onboard value is kept for comparison.
 #
-# Model and constants mirror gs_uplink_pico.ino exactly — keep in sync.
+# Model and constants mirror firmware/uplink_transmitter exactly — keep in sync.
 PASS_S = 600.0          # pass length, s
 DOP_PEAK_HZ = 6000.0    # bench-scaled peak (see the sketch for why)
 SAT_V_MS = 7600.0
@@ -111,7 +112,7 @@ BENCH_BIAS_KHZ = {"GS100": -8.0, "GS102": -4.0, "GS104": 0.0,
                   "GS107": 4.0, "GS109": 8.0}
 
 # Bench callsigns: the five stations above plus the UNKnnn attackers. Rows from
-# --simulate carry cti_platform's own scores and GS-nnn callsigns; they are left
+# --simulate carry the simulation's own scores and GS-nnn callsigns; they are left
 # alone so that re-running the analysis cannot overwrite them.
 BENCH_SRC = re.compile(r"^(GS10[02479]|UNK\d+)$", re.IGNORECASE)
 
@@ -194,13 +195,13 @@ def parse_cti_line(line: str) -> dict | None:
 
 
 # ── ground analysis ──────────────────────────────────────────────────────
-# This is the "final analysis is done on the ground" step of paper 6.2. The
-# honeypot's own score is kept in onboard_score (it only sets downlink order);
-# score/flagged/conf below are the authoritative figures.
+# The final analysis is done on the ground. The honeypot's own score is kept
+# in onboard_score; score/flagged/conf below are the authoritative figures.
 
 def _ground_score(row: sqlite3.Row, resid_hz: float) -> tuple[int, int, float]:
     """7-indicator score, same weights as HnyProto.h / detector.py.
-    The modulation indicator cannot fire on the bench (GFSK only, paper 6.4)."""
+    The modulation indicator cannot fire on the bench: the SX127x packet
+    receiver decodes only its own modulation."""
     s = 0
     if abs(row["freq_dev_khz"]) > 20.0:               s += 25   # frequency
     if abs(resid_hz) > 700.0:                         s += 25   # Doppler
@@ -265,7 +266,7 @@ def analyse_ground(con) -> int:
 
 # ── ingestion ────────────────────────────────────────────────────────────
 
-GS_PI_BIN = os.path.join(HERE, "..", "gs_cti_pi", "build", "gs_cti_pi")
+GS_PI_BIN = os.path.join(HERE, "..", "receiver", "build", "cti_receiver")
 
 
 def _ingest_line(con, line: str, tag: str) -> bool:
@@ -302,14 +303,14 @@ def ingest_serial(con, port: str, baud: int) -> None:
                     while b"\n" in buf:
                         raw, buf = buf.split(b"\n", 1)
                         line = raw.decode("utf-8", "replace").strip()
-                        pending |= _ingest_line(con, line, "pico")
+                        pending |= _ingest_line(con, line, "serial")
         except Exception as e:  # unplugged / reflashed — wait and retry
             print(f"[server] serial: {e}; retrying in 3 s")
             time.sleep(3)
 
 
 def ingest_radio(con, binary: str, rssi_threshold: float | None) -> None:
-    """Run the Pi ground-station receiver (gs_cti_pi) and read its stdout.
+    """Run the Pi receiver (ground_station/receiver) and read its stdout.
     Same batching as the serial path: once the downlink goes quiet for 2 s,
     the ground analysis runs over what arrived. The receiver is restarted if
     it ever exits. Lines are decoded with errors="replace": the honeypot keeps
@@ -340,7 +341,7 @@ def ingest_radio(con, binary: str, rssi_threshold: float | None) -> None:
                 print(f"[server] radio receiver exited with code {proc.wait()}; "
                       f"restarting in 3 s")
         except OSError as e:
-            print(f"[server] radio receiver: {e}; build it with gs_cti_pi/build.sh; "
+            print(f"[server] radio receiver: {e}; build it with ../receiver/build.sh; "
                   f"retrying in 3 s")
         except Exception as e:  # never let one bad line end ingestion
             print(f"[server] radio ingestion error: {e!r}; restarting receiver in 3 s")
@@ -348,7 +349,7 @@ def ingest_radio(con, binary: str, rssi_threshold: float | None) -> None:
 
 
 def ingest_simulate(con, n_packets: int) -> None:
-    sys.path.insert(0, os.path.join(HERE, "..", "..", "platform"))
+    sys.path.insert(0, os.path.join(HERE, "..", "..", "simulation"))
     from generator import generate
     from detector import detect
 
@@ -369,7 +370,7 @@ def ingest_simulate(con, n_packets: int) -> None:
             "cls": r.classification, "flagged": int(bool(r.detected)),
             "conf": float(r.confidence), "fp": r.fingerprint,
         }, ts=t0 + rel)
-    print(f"[server] simulated {len(scored)} packets from cti_platform")
+    print(f"[server] simulated {len(scored)} packets from simulation/")
 
 
 # ── portal state ─────────────────────────────────────────────────────────
@@ -381,23 +382,16 @@ SUSP_CMDS = ("REBOOT", "OVERRIDE", "0x7F_UNKNOWN_OPCODE",
 # mixed case; HnyProto.h compares it exactly, so the two must not drift.
 SUSP_CMDS_UC = frozenset(c.upper() for c in SUSP_CMDS)
 FLAG_MIN = 50
-# cooperative ground stations: GS-100…GS-115 (platform) and GS100…GS109 (bench)
+# cooperative ground stations: GS-100…GS-115 (simulation) and GS100…GS109 (bench)
 KNOWN_CALLSIGN = re.compile(r"^GS-?\d+$", re.IGNORECASE)
 CONFIRM_OBS = 3          # observations needed before a profile counts as confirmed
 BLOCKLIST_RISK_MIN = 60  # risk a confirmed profile needs to be a blocklist candidate
 
 
-def synthetic_location(key: str) -> dict:
-    h = int(hashlib.sha256(key.encode()).hexdigest()[:8], 16)
-    return {"lat": round(-55 + (h % 11000) / 100.0, 2),
-            "lon": round(-180 + ((h >> 12) % 36000) / 100.0, 2),
-            "err_km": 800, "synthetic": True}
-
-
 def build_state(con) -> dict:
     rows = con.execute("SELECT * FROM packets ORDER BY ts").fetchall()
     feed = [{
-        "ts": r["ts"], "src": r["src"], "cmd": r["cmd"], "modulation": "GFSK",
+        "ts": r["ts"], "src": r["src"], "cmd": r["cmd"],
         "freq_dev_khz": r["freq_dev_khz"], "dop_hz": r["dop_hz"],
         "rssi": r["rssi"], "crc_ok": bool(r["crc_ok"]),
         "score": r["score"], "cls": r["cls"],
@@ -438,7 +432,6 @@ def build_state(con) -> dict:
             "unknown_callsign": unknown,
             # record identifiers, newest first — one per packet by construction
             "fingerprints": [r["fp"] for r in reversed(rs) if r["fp"]][:8],
-            "location": synthetic_location(src),
         })
     profiles.sort(key=lambda a: (-a["risk"], -a["count"]))
 
@@ -649,11 +642,11 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     src = ap.add_mutually_exclusive_group()
     src.add_argument("--radio", nargs="?", const=GS_PI_BIN, metavar="BIN",
-                     help="run the Pi ground-station receiver (default "
-                          "../gs_cti_pi/build/gs_cti_pi) and read its records")
-    src.add_argument("--serial", help="Pico serial port, e.g. /dev/ttyACM0")
+                     help="run the Pi receiver (default "
+                          "../receiver/build/cti_receiver) and read its records")
+    src.add_argument("--serial", help="serial port of a receiver printing CTI lines, e.g. /dev/ttyACM0")
     src.add_argument("--simulate", action="store_true",
-                     help="no hardware: drive the portal from cti_platform")
+                     help="no hardware: drive the portal from the simulation")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--rssi-threshold", type=float, default=None,
                     help="--radio only: AFC/AGC start threshold in dBm "

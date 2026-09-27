@@ -4,7 +4,7 @@ arrived at the ground station.
 
     python3 scenario_analysis.py run.json ground.db
 
-run.json   benchlog.py output for the uplink (gs_uplink_pico on the Pico)
+run.json   benchlog.py output for the uplink (firmware/uplink_transmitter)
 ground.db  the ground station's bench_cti.db after the downlink ('D')
 
 Each ground record is matched to the frame the transmitter logged by

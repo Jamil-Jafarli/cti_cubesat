@@ -1,0 +1,11 @@
+# Synthetic-data pipeline and dashboard (Python 3.10+)
+pandas>=2.2
+numpy>=1.26
+matplotlib>=3.8
+streamlit>=1.40
+
+# Only needed to read a serial port:
+#   ground_station/server/hny_server.py --serial ...
+#   tools/uplink_monitor/uplink_monitor.py --serial ...
+#   analysis/benchlog.py
+pyserial>=3.5

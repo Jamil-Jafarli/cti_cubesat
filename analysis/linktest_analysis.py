@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Link test: link_test_pico frames vs the honeypot, and optionally vs the
+"""Link test: firmware/link_test frames vs the honeypot, and optionally vs the
 ground station, per carrier offset.
 
     python3 linktest_analysis.py linktest.json [--gs-log gs.log]
@@ -70,7 +70,7 @@ def main():
     if err:
         print(f"  honeypot carrier-offset error {statistics.mean(err):+.2f} ± "
               f"{statistics.pstdev(err):.2f} kHz (n={len(err)}); a steady mean is a "
-              f"calibration error: add it (in Hz) to CALIB_HZ in hny_node_esp32.ino")
+              f"calibration error: add it (in Hz) to CALIB_HZ in firmware/honeypot_node")
 
 
 if __name__ == "__main__":

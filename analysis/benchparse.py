@@ -7,10 +7,10 @@ and a receiver by callsign, command and time.
 import json
 import re
 
-# gs_uplink_pico:  [up] t= 11.1s GS102  -> HNY1  HK_DUMP  foff= -4.0 kHz  dop= +5985 Hz  legit  sent
+# uplink_transmitter: [up] t= 11.1s GS102  -> HNY1  HK_DUMP  foff= -4.0 kHz  dop= +5985 Hz  legit  sent
 UP = re.compile(r"\[up\] t=\s*([\d.]+)s (\S+)\s+-> HNY1\s+(\S+)\s+foff=\s*([+-][\d.]+) kHz"
                 r"\s+dop=\s*([+-]?\d+) Hz\s+(.*?)\s+(FCS-BROKEN )?sent")
-# link_test_pico:  [lt] seq=12 off=+24 len=29 sent
+# link_test:          [lt] seq=12 off=+24 len=29 sent
 LT = re.compile(r"\[lt\] seq=(\d+) off=([+-]?\d+)")
 # honeypot, honeypot mode:  [rx] GS104  PING  dev=  +5.8 res=  -0.2 dop= -153Hz rssi=-50 score= 0 known  WL-OK
 RX = re.compile(r"\[rx\] (\S+)\s+(\S+)\s+dev=\s*([+-][\d.]+) res=\s*([+-][\d.]+) dop=\s*([+-]?\d+)Hz"

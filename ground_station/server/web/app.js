@@ -321,7 +321,7 @@ async function selectAlert(id) {
 
 const box = (l, v) => `<div class="box"><div class="bl">${l}</div><div class="bv">${v}</div></div>`;
 
-/* The bit the paper argues about: how a number became a verdict. */
+/* How a number became a verdict: the onboard fuzzy match, term by term. */
 function analysisHtml(an) {
   const f = an.fuzzy, p = an.packet;
   const rows = f.ranked.map((c) =>
@@ -329,7 +329,7 @@ function analysisHtml(an) {
     + `<td class="mono">${sign(c.bias_khz, 2)}</td><td class="mono">${sign(c.delta_khz, 2)}</td>`
     + `<td class="mono">${c.freq_term.toFixed(3)}</td><td class="mono">${c.drift_term.toFixed(3)}</td>`
     + `<td class="mono">${c.mod_term.toFixed(2)}</td><td class="mono">${c.score.toFixed(3)}</td></tr>`).join("");
-  return `<h3>Onboard fuzzy match (§4.2)</h3>`
+  return `<h3>Onboard fuzzy match</h3>`
     + `<p class="note">score = ${f.weights.freq} × frequency + ${f.weights.drift} × drift`
     + ` + ${f.weights.modulation} × modulation. Classified <b>${esc(f.cls)}</b> at`
     + ` ${f.best.score.toFixed(3)} (known ≥ ${f.thresholds.known}, suspicious ≥ ${f.thresholds.suspicious}),`
@@ -494,7 +494,7 @@ function renderPolicy() {
          p.stale_onboard.map((c) => `<span class="chip">${esc(c)}</span>`).join(" ") || "—")
     + `</div>`
     + `<p class="note">The allowlist always wins over the blocklist, so an attacker`
-    + ` cannot get a legitimate station locked out by imitating it (paper §7). The`
+    + ` cannot get a legitimate station locked out by imitating it. The`
     + ` override is granted only when the <b>RF signature</b> matches the enrolled`
     + ` one as well as the callsign: a spoofer that transmits a whitelisted callsign`
     + ` from its own radio is reported as a mismatch instead, which is what the`

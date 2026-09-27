@@ -1,25 +1,27 @@
 # Python
 __pycache__/
 *.py[cod]
-venv/
 .venv/
+venv/
 
-# Runtime data
+# Runtime data (the campaign database in data/ is kept)
 *.db
 *.db-journal
-platform/data/
-platform/out/
+!data/**/*.db
+simulation/data/
+simulation/out/
 
 # Build output
-ground_station/gs_cti_pi/build/
+ground_station/receiver/build/
 build/
 *.bin
 *.elf
 *.uf2
 *.map
 
-# Editors / OS
+# Editors and OS
 .vscode/
 .idea/
 *.swp
 .DS_Store
+Thumbs.db
