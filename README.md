@@ -13,7 +13,7 @@ honeypot node, and a Raspberry Pi 4 ground station with a web portal.
 
 | Uplink transmitter | Honeypot node | CTI ground station |
 |---|---|---|
-| ![Uplink transmitter](docs/images/uplink_transmitter_photo.jpg) | ![Honeypot node](docs/images/honeypot_node_photo.jpg) | ![Ground station](docs/images/ground_station_photo.jpg) |
+| ![Uplink transmitter schematic](docs/images/uplink_transmitter_schematic.png) | ![Honeypot node schematic](docs/images/honeypot_node_schematic.png) | ![Ground station schematic](docs/images/ground_station_schematic.png) |
 | Raspberry Pi Pico + DRF1278F | ESP32 + Ra-01 + INA219 | Raspberry Pi 4 + Ra-01 |
 
 ## Contents
@@ -150,6 +150,8 @@ are in [docs/hardware.md](docs/hardware.md).
 |---|---|---|---|---|---|---|---|---|
 | Pico | GP18 | GP19 | GP20 | GP17 | GP22 | GP21 | 3V3(OUT) | GND |
 
+![Uplink transmitter schematic](docs/images/uplink_transmitter_schematic.png)
+
 **Honeypot node** (Ra-01, INA219, LEDs → ESP32)
 
 | Ra-01 | SCK | MISO | MOSI | NSS | RESET | DIO0 | 3.3V | GND |
@@ -164,14 +166,19 @@ are in [docs/hardware.md](docs/hardware.md).
 |---|---|---|---|---|
 | ESP32 | IO32 | IO17 | IO16 | IO4 |
 
+![Honeypot node schematic](docs/images/honeypot_node_schematic.png)
+
 **CTI ground station** (Ra-01 → Raspberry Pi 4; header pin in brackets)
 
 | Ra-01 | SCK | MISO | MOSI | NSS | RESET | DIO0 | 3.3V | GND |
 |---|---|---|---|---|---|---|---|---|
 | Pi 4 | GPIO11 (23) | GPIO9 (21) | GPIO10 (19) | GPIO8 / CE0 (24) | GPIO25 (22) | GPIO24 (18) | 3V3 (17) | GND (20) |
 
-Schematics of all three nodes are in [docs/hardware.md](docs/hardware.md);
-the Fritzing sources are in [`hardware/`](hardware).
+![Ground station schematic](docs/images/ground_station_schematic.png)
+
+The ground-station schematic draws the radio with the DRF1278F symbol; the
+bench uses a Ra-01 with the same connections. The Fritzing sources of all
+three schematics are in [`hardware/`](hardware).
 
 ### Firmware
 
